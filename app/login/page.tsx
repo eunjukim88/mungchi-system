@@ -59,7 +59,7 @@ export default function LoginPage() {
             <Image src="/logo-emb.png" alt="MUNGCHI SYSTEM Logo" width={64} height={64} className="object-contain" priority />
           </div>
           <div className="space-y-2">
-            <CardTitle className="text-2xl font-bold">작업 관리 시스템</CardTitle>
+            <CardTitle className="text-2xl font-bold">영업 관리 시스템</CardTitle>
             <CardDescription>아이디와 비밀번호로 로그인하세요</CardDescription>
           </div>
         </CardHeader>

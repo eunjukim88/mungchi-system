@@ -8,8 +8,8 @@ import { AuthGuard } from "@/components/auth-guard"
 import "./globals.css"
 
 export const metadata: Metadata = {
-  title: "작업 관리 시스템",
-  description: "MUNGCHI SYSTEM - 작업 관리 어드민",
+  title: "영업 관리 시스템",
+  description: "MUNGCHI SYSTEM - 영업 관리 어드민",
   generator: "v0.app",
 }
 

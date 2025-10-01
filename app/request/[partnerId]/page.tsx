@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Upload, FileText } from "lucide-react"
 
 // Mock partner data - in real app, this would come from a database
@@ -37,6 +38,10 @@ export default function WorkRequestPage() {
   })
 
   const [uploadedFile, setUploadedFile] = useState<File | null>(null)
+  const [isKeypadModalOpen, setIsKeypadModalOpen] = useState(false)
+  const [pendingOrderQuantity, setPendingOrderQuantity] = useState("")
+
+  const keypadDigits = ["8", "2", "9", "7", "3", "6", "5", "1", "4"]
 
   if (!partner) {
     return (
@@ -60,6 +65,34 @@ export default function WorkRequestPage() {
     if (file) {
       setUploadedFile(file)
     }
+  }
+
+  const openKeypadModal = () => {
+    setPendingOrderQuantity(formData.orderQuantity || "")
+    setIsKeypadModalOpen(true)
+  }
+
+  const handleOrderQuantityAppend = (digit: string) => {
+    setPendingOrderQuantity((prev) => {
+      const nextRaw = `${prev}${digit}`
+      return nextRaw.replace(/^0+(?!$)/g, "")
+    })
+  }
+
+  const handleOrderQuantityDelete = () => {
+    setPendingOrderQuantity((prev) => prev.slice(0, -1))
+  }
+
+  const handleOrderQuantityClear = () => {
+    setPendingOrderQuantity("")
+  }
+
+  const handleOrderQuantityConfirm = () => {
+    setFormData((prev) => ({
+      ...prev,
+      orderQuantity: pendingOrderQuantity,
+    }))
+    setIsKeypadModalOpen(false)
   }
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -136,15 +169,19 @@ export default function WorkRequestPage() {
 
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">오더 수량</Label>
-                  <Input className="border-border"
+                  <Input
+                    className="border-border"
                     value={formData.orderQuantity}
-                    onChange={(e) => handleInputChange("orderQuantity", e.target.value)}
+                    readOnly
+                    inputMode="numeric"
                     placeholder="수량을 입력하세요"
+                    onFocus={openKeypadModal}
+                    onClick={openKeypadModal}
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium">완료일</Label>
+                  <Label className="text-sm font-medium">입고일</Label>
                   <Input
                     type="date"
                     value={formData.quantity}
@@ -176,6 +213,62 @@ export default function WorkRequestPage() {
         {/* Footer */}
         <div className="text-center text-sm text-muted-foreground">작업 요청서 제출 후 담당자가 연락드리겠습니다.</div>
       </div>
+      <Dialog open={isKeypadModalOpen} onOpenChange={setIsKeypadModalOpen}>
+        <DialogContent className="w-full max-w-xs rounded-3xl border-none bg-primary text-primary-foreground p-6 shadow-2xl">
+          <DialogHeader className="mb-4 space-y-1">
+            <DialogTitle className="text-center text-base font-semibold tracking-wide">오더 수량 입력</DialogTitle>
+            <div className="text-center text-3xl font-bold text-white/90">
+              {pendingOrderQuantity || "0"}
+            </div>
+          </DialogHeader>
+          <div className="grid grid-cols-3 gap-3">
+            {keypadDigits.map((digit) => (
+              <Button
+                key={digit}
+                type="button"
+                variant="secondary"
+                className="h-14 rounded-2xl bg-white/15 text-2xl font-semibold text-primary-foreground hover:bg-white/25"
+                onClick={() => handleOrderQuantityAppend(digit)}
+              >
+                {digit}
+              </Button>
+            ))}
+            <Button
+              type="button"
+              variant="secondary"
+              className="h-14 rounded-2xl bg-white/10 text-sm font-medium text-primary-foreground hover:bg-white/20"
+              onClick={handleOrderQuantityClear}
+            >
+              전체삭제
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              className="h-14 rounded-2xl bg-white/15 text-2xl font-semibold text-primary-foreground hover:bg-white/25"
+              onClick={() => handleOrderQuantityAppend("0")}
+            >
+              0
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              className="h-14 rounded-2xl bg-white/15 text-2xl font-semibold text-primary-foreground hover:bg-white/25"
+              onClick={handleOrderQuantityDelete}
+            >
+              ⌫
+            </Button>
+          </div>
+          <DialogFooter className="mt-6">
+            <Button
+              type="button"
+              className="w-full rounded-2xl bg-white text-primary hover:bg-white/90"
+              onClick={handleOrderQuantityConfirm}
+            >
+              확인
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

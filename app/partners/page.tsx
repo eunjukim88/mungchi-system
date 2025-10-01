@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { AdminLayout } from "@/components/admin-layout"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -27,55 +27,32 @@ import {
   ChevronLeft,
   ChevronRight,
   Building,
+  Info,
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
-
-const partners = [
-  {
-    id: "1",
-    name: "B파트너",
-    contactPerson: "이파트",
-    phone: "010-7777-7777",
-    uniqueId: "bpartner-001",
-    createdAt: "2025-09-13",
-  },
-  {
-    id: "2",
-    name: "A파트너",
-    contactPerson: "김파트",
-    phone: "010-7172-9698",
-    uniqueId: "apartner-002",
-    createdAt: "2025-09-12",
-  },
-  {
-    id: "3",
-    name: "A파트너",
-    contactPerson: "김파트",
-    phone: "010-7172-9698",
-    uniqueId: "apartner-003",
-    createdAt: "2025-09-12",
-  },
-  {
-    id: "",
-    name: "A파트너",
-    contactPerson: "김파트",
-    phone: "010-7172-9698",
-    uniqueId: "apartner-004",
-    createdAt: "2025-09-12",
-  },
-]
+import { loadPartners, PartnerRecord, savePartners } from "@/lib/partners/storage"
 
 export default function PartnersPage() {
+  const [partners, setPartners] = useState<PartnerRecord[]>(() => loadPartners())
   const [searchTerm, setSearchTerm] = useState("")
   const [isNewPartnerDialogOpen, setIsNewPartnerDialogOpen] = useState(false)
+  const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false)
+  const [selectedPartner, setSelectedPartner] = useState<PartnerRecord | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 8 // 4*2 grid
 
-  const filteredPartners = partners.filter(
-    (partner) =>
-      partner.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      partner.contactPerson.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      partner.phone.includes(searchTerm),
+  const filteredPartners = useMemo(
+    () =>
+      partners.filter((partner) => {
+        const lowerTerm = searchTerm.toLowerCase()
+        return (
+          partner.name.toLowerCase().includes(lowerTerm) ||
+          partner.contactPerson.toLowerCase().includes(lowerTerm) ||
+          partner.phone.includes(searchTerm) ||
+          partner.registrationNumber.replace(/-/g, "").includes(searchTerm.replace(/-/g, ""))
+        )
+      }),
+    [partners, searchTerm],
   )
 
   const totalPages = Math.ceil(filteredPartners.length / itemsPerPage)
@@ -95,6 +72,28 @@ export default function PartnersPage() {
       title: "URL 복사됨",
       description: "작업 요청 URL이 클립보드에 복사되었습니다.",
     })
+  }
+
+  const handleAddPartner = (partner: PartnerRecord) => {
+    setPartners((prev) => {
+      const next = [...prev, partner]
+      savePartners(next)
+      return next
+    })
+    toast({
+      title: "거래처 등록 완료",
+      description: `${partner.name}이(가) 성공적으로 등록되었습니다.`,
+    })
+  }
+
+  const openDetail = (partner: PartnerRecord) => {
+    setSelectedPartner(partner)
+    setIsDetailDialogOpen(true)
+  }
+
+  const closeDetail = () => {
+    setIsDetailDialogOpen(false)
+    setSelectedPartner(null)
   }
 
   return (
@@ -118,7 +117,13 @@ export default function PartnersPage() {
                 <DialogTitle>새 거래처 등록</DialogTitle>
                 <DialogDescription>새로운 거래처 정보를 입력하세요</DialogDescription>
               </DialogHeader>
-              <NewPartnerForm onClose={() => setIsNewPartnerDialogOpen(false)} />
+              <NewPartnerForm
+                onClose={() => setIsNewPartnerDialogOpen(false)}
+                onSubmit={(partner) => {
+                  handleAddPartner(partner)
+                  setIsNewPartnerDialogOpen(false)
+                }}
+              />
             </DialogContent>
           </Dialog>
         </div>
@@ -182,6 +187,15 @@ export default function PartnersPage() {
                 </div>
 
                 <div className="flex gap-2 pt-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 bg-transparent"
+                    onClick={() => openDetail(partner)}
+                  >
+                    <Info className="h-4 w-4 mr-1" />
+                    상세보기
+                  </Button>
                   <Button variant="outline" size="sm" className="flex-1 bg-transparent">
                     <Edit className="h-4 w-4 mr-1" />
                     수정
@@ -199,90 +213,153 @@ export default function PartnersPage() {
                     variant="outline"
                     size="sm"
                     className="text-destructive hover:text-destructive bg-transparent"
+                    disabled
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
               </CardContent>
-            </Card>
-          ))}
-        </div>
-
-        {/* Pagination Controls */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-              disabled={currentPage === 1}
-            >
-              <ChevronLeft className="h-4 w-4" />
-              이전
-            </Button>
-
-            <div className="flex items-center gap-1">
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                <Button
-                  key={page}
-                  variant={currentPage === page ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setCurrentPage(page)}
-                  className="w-8 h-8 p-0"
-                >
-                  {page}
-                </Button>
-              ))}
-            </div>
-
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
-              disabled={currentPage === totalPages}
-            >
-              다음
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-        )}
-
-        {/* Updated Empty State */}
-        {currentPartners.length === 0 && filteredPartners.length === 0 && (
-          <Card>
-            <CardContent className="text-center py-12">
-              <p className="text-muted-foreground">검색 조건에 맞는 거래처가 없습니다.</p>
-            </CardContent>
           </Card>
-        )}
+        ))}
+      </div>
 
-        {/* Pagination Info */}
-        {filteredPartners.length > 0 && (
-          <div className="text-center text-sm text-muted-foreground">
-            총 {filteredPartners.length}개 중 {startIndex + 1}-{Math.min(endIndex, filteredPartners.length)}개 표시
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+            disabled={currentPage === 1}
+          >
+            <ChevronLeft className="h-4 w-4" />
+            이전
+          </Button>
+
+          <div className="flex items-center gap-1">
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+              <Button
+                key={page}
+                variant={currentPage === page ? "default" : "outline"}
+                size="sm"
+                onClick={() => setCurrentPage(page)}
+                className="w-8 h-8 p-0"
+              >
+                {page}
+              </Button>
+            ))}
+          </div>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+            disabled={currentPage === totalPages}
+          >
+            다음
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
+
+      {/* Updated Empty State */}
+      {currentPartners.length === 0 && filteredPartners.length === 0 && (
+        <Card>
+          <CardContent className="text-center py-12">
+            <p className="text-muted-foreground">검색 조건에 맞는 거래처가 없습니다.</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Pagination Info */}
+      {filteredPartners.length > 0 && (
+        <div className="text-center text-sm text-muted-foreground">
+          총 {filteredPartners.length}개 중 {startIndex + 1}-{Math.min(endIndex, filteredPartners.length)}개 표시
+        </div>
+      )}
+    </div>
+    <Dialog
+      open={isDetailDialogOpen}
+      onOpenChange={(open) => {
+        if (!open) {
+          closeDetail()
+        }
+      }}
+    >
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{selectedPartner?.name ?? "거래처 상세 정보"}</DialogTitle>
+          <DialogDescription>추가로 입력한 거래처 상세 정보를 확인하세요.</DialogDescription>
+        </DialogHeader>
+        {selectedPartner && (
+          <div className="grid gap-4">
+            <div className="grid gap-1">
+              <span className="text-sm text-muted-foreground">대표자명</span>
+              <span className="font-medium">{selectedPartner.representativeName}</span>
+            </div>
+            <div className="grid gap-1">
+              <span className="text-sm text-muted-foreground">사업자등록번호</span>
+              <span className="font-medium">{selectedPartner.registrationNumber}</span>
+            </div>
+            <div className="grid gap-1">
+              <span className="text-sm text-muted-foreground">사업장 주소</span>
+              <span className="font-medium">{selectedPartner.businessAddress}</span>
+            </div>
+            <div className="grid gap-1">
+              <span className="text-sm text-muted-foreground">이메일</span>
+              <span className="font-medium">{selectedPartner.email}</span>
+            </div>
+            <div className="grid gap-1">
+              <span className="text-sm text-muted-foreground">담당자명</span>
+              <span className="font-medium">{selectedPartner.contactPerson}</span>
+            </div>
+            <div className="grid gap-1">
+              <span className="text-sm text-muted-foreground">담당자 연락처</span>
+              <span className="font-medium">{selectedPartner.phone}</span>
+            </div>
           </div>
         )}
-      </div>
-    </AdminLayout>
+      </DialogContent>
+    </Dialog>
+  </AdminLayout>
   )
 }
 
-function NewPartnerForm({ onClose }: { onClose: () => void }) {
+function NewPartnerForm({
+  onClose,
+  onSubmit,
+}: {
+  onClose: () => void
+  onSubmit: (partner: PartnerRecord) => void
+}) {
   const [formData, setFormData] = useState({
     name: "",
+    registrationNumber: "",
+    businessAddress: "",
     contactPerson: "",
     phone: "",
+    representativeName: "",
+    email: "",
   })
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    const uniqueId = `${formData.name.toLowerCase().replace(/\s+/g, "")}-${Date.now().toString().slice(-3)}`
-    console.log("New partner:", { ...formData, uniqueId })
-    toast({
-      title: "거래처 등록 완료",
-      description: `${formData.name}이(가) 성공적으로 등록되었습니다.`,
-    })
-    onClose()
+    const timestamp = Date.now()
+    const normalizedName = formData.name.trim()
+    const uniqueId = `${normalizedName.toLowerCase().replace(/\s+/g, "")}-${timestamp.toString().slice(-4)}`
+    const newPartner: PartnerRecord = {
+      id: `${timestamp}`,
+      name: normalizedName,
+      registrationNumber: formData.registrationNumber.trim(),
+      businessAddress: formData.businessAddress.trim(),
+      contactPerson: formData.contactPerson.trim(),
+      phone: formData.phone.trim(),
+      representativeName: formData.representativeName.trim(),
+      email: formData.email.trim(),
+      uniqueId,
+      createdAt: new Date(timestamp).toISOString().split("T")[0],
+    }
+    onSubmit(newPartner)
   }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -308,6 +385,30 @@ function NewPartnerForm({ onClose }: { onClose: () => void }) {
       </div>
 
       <div className="space-y-2">
+        <Label htmlFor="registrationNumber">사업자등록번호 *</Label>
+        <Input
+          id="registrationNumber"
+          name="registrationNumber"
+          value={formData.registrationNumber}
+          onChange={handleInputChange}
+          placeholder="000-00-00000"
+          required
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="businessAddress">사업장 주소 *</Label>
+        <Input
+          id="businessAddress"
+          name="businessAddress"
+          value={formData.businessAddress}
+          onChange={handleInputChange}
+          placeholder="사업장 주소를 입력하세요"
+          required
+        />
+      </div>
+
+      <div className="space-y-2">
         <Label htmlFor="contactPerson">담당자명 *</Label>
         <Input
           id="contactPerson"
@@ -327,6 +428,31 @@ function NewPartnerForm({ onClose }: { onClose: () => void }) {
           value={formData.phone}
           onChange={handleInputChange}
           placeholder="010-0000-0000"
+          required
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="representativeName">대표자명 *</Label>
+        <Input
+          id="representativeName"
+          name="representativeName"
+          value={formData.representativeName}
+          onChange={handleInputChange}
+          placeholder="대표자명을 입력하세요"
+          required
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="email">이메일 *</Label>
+        <Input
+          id="email"
+          name="email"
+          type="email"
+          value={formData.email}
+          onChange={handleInputChange}
+          placeholder="email@example.com"
           required
         />
       </div>

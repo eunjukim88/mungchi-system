@@ -22,8 +22,13 @@ const menuItems = [
     icon: Users,
   },
   {
-    title: "작업 관리",
+    title: "영업 관리",
     href: "/work",
+    icon: ClipboardList,
+  },
+  {
+    title: "생산 관리",
+    href: "/production",
     icon: ClipboardList,
   },
   {
@@ -94,7 +99,7 @@ export function Sidebar({ className }: SidebarProps) {
                     priority
                   />
                 </div>
-                <span className="text-sidebar-foreground font-semibold">작업 관리 시스템</span>
+                <span className="text-sidebar-foreground font-semibold">영업 관리 시스템</span>
               </div>
             )}
             <Button
