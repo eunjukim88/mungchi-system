@@ -6,11 +6,13 @@ import { useEffect, useState } from "react"
 import { AdminLayout } from "@/components/admin-layout"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import { NumericKeypadInput } from "@/components/ui/numeric-keypad-input"
+import { FileUploadDropzone } from "@/components/ui/file-upload-dropzone"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
+import { StatusBadge } from "@/components/status/StatusBadge"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Filter, Upload, FileText, Paperclip } from "lucide-react"
 
@@ -56,7 +58,7 @@ const workItems: WorkItem[] = [
     orderQuantity: 850,
     arrivalDate: "2025-09-15",
     registrationDate: "2025-09-12",
-    status: "작업완료",
+    status: "후가공중",
     attachments: ["design_spec.pdf"],
     unitPrice: 15000,
     shipmentDate: "2025-09-20",
@@ -92,23 +94,6 @@ export default function WorkManagementPage() {
   const [isWorkInputDialogOpen, setIsWorkInputDialogOpen] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 6
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "대기중":
-        return (
-          <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
-            {status}
-          </Badge>
-        )
-      case "작업완료":
-        return <Badge className="bg-blue-100 text-blue-800">{status}</Badge>
-      case "배송완료":
-        return <Badge className="bg-green-100 text-green-800">{status}</Badge>
-      default:
-        return <Badge variant="secondary">{status}</Badge>
-    }
-  }
 
   const filteredItems = workItems.filter((item) => {
     const matchesStatus = statusFilter === "전체" || item.status === statusFilter
@@ -172,7 +157,8 @@ export default function WorkManagementPage() {
                   <SelectContent>
                     <SelectItem value="전체">전체</SelectItem>
                     <SelectItem value="대기중">대기중</SelectItem>
-                    <SelectItem value="작업완료">작업완료</SelectItem>
+                    <SelectItem value="작업중">작업중</SelectItem>
+                    <SelectItem value="후가공중">후가공중</SelectItem>
                     <SelectItem value="배송완료">배송완료</SelectItem>
                   </SelectContent>
                 </Select>
@@ -208,7 +194,7 @@ export default function WorkManagementPage() {
                     <h3 className="text-lg font-semibold text-foreground">{item.partnerName}</h3>
                     <Badge variant="outline" className="mt-1">#{item.styleNo}</Badge>
                   </div>
-                  {getStatusBadge(item.status)}
+                  <StatusBadge status={item.status} />
                 </div>
 
                 <div className="space-y-3 text-sm">
@@ -320,6 +306,7 @@ function WorkInputForm({ workItem, onClose }: { workItem: any; onClose: () => vo
     imageFiles: [] as File[],
     dataFiles: [] as File[],
   })
+  const [isDataDragActive, setIsDataDragActive] = useState(false)
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -335,12 +322,12 @@ function WorkInputForm({ workItem, onClose }: { workItem: any; onClose: () => vo
     }))
   }
 
-  const handleDataFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files ? Array.from(e.target.files) : []
+  const handleDataFilesChange = (nextFiles: File[]) => {
     setFormData((prev) => ({
       ...prev,
-      dataFiles: files,
+      dataFiles: nextFiles,
     }))
+    setIsDataDragActive(false)
   }
 
   return (
@@ -353,21 +340,23 @@ function WorkInputForm({ workItem, onClose }: { workItem: any; onClose: () => vo
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="대기중">대기중</SelectItem>
-              <SelectItem value="작업완료">작업완료</SelectItem>
-              <SelectItem value="배송완료">배송완료</SelectItem>
+                    <SelectItem value="전체">전체</SelectItem>
+                    <SelectItem value="대기중">대기중</SelectItem>
+                    <SelectItem value="작업중">작업중</SelectItem>
+                    <SelectItem value="후가공중">후가공중</SelectItem>
+                    <SelectItem value="배송완료">배송완료</SelectItem>
             </SelectContent>
           </Select>
         </div>
 
         <div className="space-y-2">
           <Label className="leading-8">단가</Label>
-          <Input
-            className="border-border"
-            type="number"
-            placeholder="단가를 입력하세요"
+          <NumericKeypadInput
             value={formData.unitPrice}
-            onChange={(e) => setFormData({ ...formData, unitPrice: e.target.value })}
+            onValueChange={(nextValue) => setFormData({ ...formData, unitPrice: nextValue })}
+            placeholder="단가를 입력하세요"
+            inputClassName="border-border"
+            modalTitle="단가 입력"
           />
         </div>
 
@@ -420,32 +409,15 @@ function WorkInputForm({ workItem, onClose }: { workItem: any; onClose: () => vo
           <Label className="py-0 leading-7 my-0">데이터 파일 첨부 (.dst)</Label>
           <Card className="py-px">
             <CardContent className="p-4">
-              <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center py-2.5">
-                <input
-                  type="file"
-                  multiple
-                  accept=".dst"
-                  onChange={handleDataFileChange}
-                  className="hidden"
-                  id="data-file-upload"
-                />
-                <label htmlFor="data-file-upload" className="cursor-pointer">
-                  <Upload className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                  <p className="text-muted-foreground">데이터 파일 선택</p>
-                  <p className="text-sm text-muted-foreground mt-1">DST 확장자 파일만 업로드할 수 있습니다</p>
-                </label>
-              </div>
-              {formData.dataFiles.length > 0 && (
-                <div className="mt-4 space-y-2">
-                  <p className="text-sm font-medium">선택된 데이터 파일:</p>
-                  {formData.dataFiles.map((file, index) => (
-                    <div key={index} className="flex items-center gap-2 text-sm">
-                      <Paperclip className="h-4 w-4" />
-                      {file.name}
-                    </div>
-                  ))}
-                </div>
-              )}
+              <FileUploadDropzone
+                value={formData.dataFiles}
+                onChange={handleDataFilesChange}
+                acceptExtensions={["dst"]}
+                title="데이터 파일 선택"
+                description="DST 확장자 파일만 업로드할 수 있습니다"
+                hint="여러 파일을 선택하거나 이 영역으로 드래그하세요"
+                listTitle="선택된 데이터 파일:"
+              />
             </CardContent>
           </Card>
         </div>

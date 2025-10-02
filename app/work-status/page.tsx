@@ -3,20 +3,21 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { AdminLayout } from "@/components/admin-layout"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Calendar, Download, FileText } from "lucide-react"
+import { Calendar } from "lucide-react"
 import QuotePreviewDialog from "@/components/quote/QuotePreviewDialog"
 import { downloadTransactionStatementsReactPdfPerPartner } from "@/lib/quoteReactPdf"
-import * as XLSX from "xlsx"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { ImageCaptureButton } from "@/components/work-status/image-capture-button"
 import { WorkStatusCaptureItem, WorkStatusCaptureView } from "@/components/work-status/capture-view"
 import { WorkStatusActionToolbar } from "@/components/work-status/action-toolbar"
+import { Label } from "@/components/ui/label"
+import { StatusBadge } from "@/components/status/StatusBadge"
 import {
   buildTransactionStatementsByPartner,
   downloadWorkStatusExcel,
@@ -26,7 +27,7 @@ import {
 import { CompanyInfo, loadCompanyInfo } from "@/lib/settings/storage"
 import { loadPartners, PartnerRecord, partnersToMap } from "@/lib/partners/storage"
 
-const workStatusData = [
+const workStatusData: WorkStatusRecord[] = [
   {
     id: "ST-2024-001",
     partnerName: "B파트너",
@@ -57,7 +58,7 @@ const workStatusData = [
     shipDate: "2025-09-22",
     workQuantity: 850,
     dataFile: "데이터_002.xlsx",
-    status: "작업완료",
+    status: "작업중",
     designMemo: "패턴 수정 완료. 박음질 라인 두께를 1mm 줄여 재시안 전달 완료.",
     salesMemo: "출고 일정 확정 대기 중. 파트너 측 검수 결과를 9/17까지 받아야 함.",
   },
@@ -74,14 +75,32 @@ const workStatusData = [
     shipDate: "2025-09-25",
     workQuantity: 1980,
     dataFile: "데이터_003.xlsx",
-    status: "배송완료",
+    status: "후가공중",
     designMemo: "완제품 1차 검수 완료. 금속 장식 고정 상태 우수, 추가 수정 없음.",
     salesMemo: "고객 전달 완료. 9/22 AS 요청 가능성 있어 사후 모니터링 중.",
   },
+  {
+    id: "ST-2024-004",
+    partnerName: "D파트너",
+    styleNo: "ST-221",
+    imageUrl: "/Screenshot_1.png",
+    orderQuantity: 2000,
+    receiveDate: "2025-09-08",
+    workOrderFile: "작업지시서_003.pdf",
+    unitPrice: 12000,
+    expectedShipDate: "2025-09-14",
+    shipDate: "2025-09-25",
+    workQuantity: 1980,
+    dataFile: "데이터_003.xlsx",
+    status: "배송완료",
+    designMemo: "완제품 1차 검수 완료. 금속 장식 고정 상태 우수, 추가 수정 없음.",
+    salesMemo: "고객 전달 완료. 9/22 AS 요청 가능성 있어 사후 모니터링 중.",
+  }
 ]
 
-const partners = ["전체", "A파트너", "B파트너", "C파트너"]
-const statusOptions = ["전체", "대기중", "작업완료", "배송완료"]
+const partners = ["전체", "A파트너", "B파트너", "C파트너", "D파트너"]
+const statusOptions = ["전체", "대기중", "작업중", "후가공중", "배송완료"]
+const recordStatusOptions = statusOptions.filter((status) => status !== "전체")
 
 export default function WorkStatusPage() {
   const [startDate, setStartDate] = useState("")
@@ -89,13 +108,31 @@ export default function WorkStatusPage() {
   const [selectedMonth, setSelectedMonth] = useState("전체")
   const [selectedPartner, setSelectedPartner] = useState("전체")
   const [selectedStatus, setSelectedStatus] = useState("전체")
-  const [filteredData, setFilteredData] = useState(workStatusData)
+  const [records, setRecords] = useState<WorkStatusRecord[]>(workStatusData)
+  const [filteredData, setFilteredData] = useState<WorkStatusRecord[]>(workStatusData)
   const [selectedItems, setSelectedItems] = useState<string[]>([])
   const [showStatementPreview, setShowStatementPreview] = useState(false)
   const [statementData, setStatementData] = useState<TransactionStatement[]>([])
   const captureViewRef = useRef<HTMLDivElement>(null)
   const [companyInfo, setCompanyInfo] = useState<CompanyInfo>(() => loadCompanyInfo())
   const [partnersState, setPartnersState] = useState<PartnerRecord[]>(() => loadPartners())
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [editingItem, setEditingItem] = useState<WorkStatusRecord | null>(null)
+  const [editForm, setEditForm] = useState({
+    partnerName: "",
+    styleNo: "",
+    orderQuantity: "",
+    receiveDate: "",
+    status: recordStatusOptions[0],
+    expectedShipDate: "",
+    shipDate: "",
+    workQuantity: "",
+    unitPrice: "",
+    designMemo: "",
+    salesMemo: "",
+  })
+  const [previewImage, setPreviewImage] = useState<string>("")
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   const partnerMap = useMemo(() => partnersToMap(partnersState), [partnersState])
 
@@ -104,25 +141,8 @@ export default function WorkStatusPage() {
     setPartnersState(loadPartners())
   }, [])
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "대기중":
-        return (
-          <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
-            {status}
-          </Badge>
-        )
-      case "작업완료":
-        return <Badge className="bg-blue-100 text-blue-800">{status}</Badge>
-      case "배송완료":
-        return <Badge className="bg-green-100 text-green-800">{status}</Badge>
-      default:
-        return <Badge variant="secondary">{status}</Badge>
-    }
-  }
-
-  const handleFilter = () => {
-    let filtered = workStatusData
+  const applyFilters = (source: WorkStatusRecord[] = records) => {
+    let filtered = source
 
     if (selectedPartner !== "전체") {
       filtered = filtered.filter((item) => item.partnerName === selectedPartner)
@@ -133,6 +153,10 @@ export default function WorkStatusPage() {
     }
 
     setFilteredData(filtered)
+  }
+
+  const handleFilter = () => {
+    applyFilters()
   }
 
   const handleFileDownload = (fileName: string) => {
@@ -219,6 +243,106 @@ export default function WorkStatusPage() {
           : "전체 기간",
   }
   
+  const openEditDialog = (item: WorkStatusRecord) => {
+    setEditingItem(item)
+    setEditForm({
+      partnerName: item.partnerName,
+      styleNo: item.styleNo,
+      orderQuantity: String(item.orderQuantity ?? ""),
+      receiveDate: item.receiveDate ?? "",
+      status: item.status,
+      expectedShipDate: item.expectedShipDate ?? "",
+      shipDate: item.shipDate ?? "",
+      workQuantity: item.workQuantity !== null && item.workQuantity !== undefined ? String(item.workQuantity) : "",
+      unitPrice: item.unitPrice !== null && item.unitPrice !== undefined ? String(item.unitPrice) : "",
+      designMemo: item.designMemo ?? "",
+      salesMemo: item.salesMemo ?? "",
+    })
+    setPreviewImage(item.imageUrl)
+    setIsEditDialogOpen(true)
+  }
+
+  const handleEditFormChange = (field: keyof typeof editForm, value: string) => {
+    setEditForm((prev) => ({ ...prev, [field]: value }))
+  }
+
+  const closeEditDialog = () => {
+    setIsEditDialogOpen(false)
+    setEditingItem(null)
+    setEditForm({
+      partnerName: "",
+      styleNo: "",
+      orderQuantity: "",
+      receiveDate: "",
+      status: recordStatusOptions[0],
+      expectedShipDate: "",
+      shipDate: "",
+      workQuantity: "",
+      unitPrice: "",
+      designMemo: "",
+      salesMemo: "",
+    })
+    setPreviewImage("")
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ""
+    }
+  }
+
+  const handleEditSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!editingItem) return
+
+    if (!editForm.partnerName.trim()) {
+      alert("거래처명을 입력해주세요.")
+      return
+    }
+
+    if (!editForm.styleNo.trim()) {
+      alert("스타일넘버를 입력해주세요.")
+      return
+    }
+
+    if (!editForm.orderQuantity.trim()) {
+      alert("오더수량을 입력해주세요.")
+      return
+    }
+
+    if (!editForm.receiveDate.trim()) {
+      alert("입고일을 선택해주세요.")
+      return
+    }
+
+    const parsedUnitPrice = editForm.unitPrice.trim() === "" ? editingItem.unitPrice : Number(editForm.unitPrice)
+    const parsedWorkQuantity =
+      editForm.workQuantity.trim() === "" ? editingItem.workQuantity : Number(editForm.workQuantity)
+    const parsedOrderQuantity =
+      editForm.orderQuantity.trim() === "" ? editingItem.orderQuantity : Number(editForm.orderQuantity)
+
+    const updatedRecords = records.map((item) =>
+      item.id === editingItem.id
+        ? {
+            ...item,
+            imageUrl: previewImage || item.imageUrl,
+            partnerName: editForm.partnerName,
+            styleNo: editForm.styleNo,
+            orderQuantity: parsedOrderQuantity,
+            receiveDate: editForm.receiveDate,
+            status: editForm.status,
+            expectedShipDate: editForm.expectedShipDate,
+            shipDate: editForm.shipDate,
+            workQuantity: parsedWorkQuantity,
+            unitPrice: parsedUnitPrice,
+            designMemo: editForm.designMemo,
+            salesMemo: editForm.salesMemo,
+          }
+        : item,
+    )
+
+    setRecords(updatedRecords)
+    applyFilters(updatedRecords)
+    closeEditDialog()
+  }
+
   return (
     <AdminLayout>
       <div className="space-y-6">
@@ -329,7 +453,7 @@ export default function WorkStatusPage() {
                     setSelectedMonth("전체")
                     setSelectedPartner("전체")
                     setSelectedStatus("전체")
-                    setFilteredData(workStatusData)
+                    setFilteredData(records)
                     setSelectedItems([])
                   }}
                   className="w-full"
@@ -370,6 +494,7 @@ export default function WorkStatusPage() {
                     <TableHead className="min-w-[140px] text-center">영업관리 메모</TableHead>
                     <TableHead className="min-w-[150px] text-center">작업지시서</TableHead>
                     <TableHead className="min-w-[150px] text-center">데이터 파일</TableHead>
+                    <TableHead className="min-w-[100px] text-center">관리</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -394,7 +519,9 @@ export default function WorkStatusPage() {
                       <TableCell className="text-center font-medium">{item.orderQuantity.toLocaleString()}개</TableCell>
                       <TableCell className="text-center text-sm">{item.receiveDate}</TableCell>
                       <TableCell className="text-center text-sm">{item.expectedShipDate}</TableCell>
-                      <TableCell className="text-center">{getStatusBadge(item.status)}</TableCell>
+                      <TableCell className="text-center">
+                        <StatusBadge status={item.status} />
+                      </TableCell>
                       <TableCell className="text-center">
                         <Dialog>
                           <DialogTrigger asChild>
@@ -457,6 +584,16 @@ export default function WorkStatusPage() {
                           다운로드
                         </Button>
                       </TableCell>
+                      <TableCell className="text-center">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 px-3 text-xs"
+                          onClick={() => openEditDialog(item)}
+                        >
+                          수정
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -464,7 +601,177 @@ export default function WorkStatusPage() {
             </div>
           </CardContent>
         </Card>
-        
+
+        <Dialog
+          open={isEditDialogOpen}
+          onOpenChange={(open) => {
+            if (!open) {
+              closeEditDialog()
+            } else {
+              setIsEditDialogOpen(true)
+            }
+          }}
+        >
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>작업 현황 수정</DialogTitle>
+              <DialogDescription>선택한 작업의 진행 정보와 메모를 업데이트하세요.</DialogDescription>
+            </DialogHeader>
+            {editingItem && (
+              <form onSubmit={handleEditSubmit} className="space-y-4">
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="space-y-3 md:col-span-2">
+                    <Label className="text-sm font-medium">이미지</Label>
+                    <div className="flex items-center gap-4">
+                      <div className="h-20 w-20 overflow-hidden rounded-md border border-dashed border-border bg-muted">
+                        {previewImage ? (
+                          <img src={previewImage} alt="미리보기" className="h-full w-full object-cover" />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center text-xs text-muted-foreground">
+                            미리보기 없음
+                          </div>
+                        )}
+                      </div>
+                      <div className="space-y-2">
+                        <Input
+                          ref={fileInputRef}
+                          type="file"
+                          accept="image/*"
+                          onChange={(event) => {
+                            const file = event.target.files?.[0]
+                            if (file) {
+                              const objectUrl = URL.createObjectURL(file)
+                              setPreviewImage(objectUrl)
+                            }
+                          }}
+                          className="border-border"
+                        />
+                        <p className="text-xs text-muted-foreground">* 파일을 선택하면 기존 이미지를 대체합니다.</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">거래처명</Label>
+                    <Input
+                      value={editForm.partnerName}
+                      onChange={(event) => handleEditFormChange("partnerName", event.target.value)}
+                      className="border-border"
+                      placeholder="거래처명을 입력하세요"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">스타일넘버</Label>
+                    <Input
+                      value={editForm.styleNo}
+                      onChange={(event) => handleEditFormChange("styleNo", event.target.value)}
+                      className="border-border"
+                      placeholder="스타일넘버를 입력하세요"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">오더수량</Label>
+                    <Input
+                      type="number"
+                      value={editForm.orderQuantity}
+                      onChange={(event) => handleEditFormChange("orderQuantity", event.target.value)}
+                      className="border-border"
+                      placeholder="오더수량을 입력하세요"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">입고일</Label>
+                    <Input
+                      type="date"
+                      value={editForm.receiveDate}
+                      onChange={(event) => handleEditFormChange("receiveDate", event.target.value)}
+                      className="border-border"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">진행 상태</Label>
+                    <Select value={editForm.status} onValueChange={(value) => handleEditFormChange("status", value)}>
+                      <SelectTrigger className="border-border">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {recordStatusOptions.map((status) => (
+                          <SelectItem key={status} value={status}>
+                            {status}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">단가</Label>
+                    <Input
+                      type="number"
+                      value={editForm.unitPrice}
+                      onChange={(event) => handleEditFormChange("unitPrice", event.target.value)}
+                      className="border-border"
+                      placeholder="단가를 입력하세요"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">예상 출고일</Label>
+                    <Input
+                      type="date"
+                      value={editForm.expectedShipDate}
+                      onChange={(event) => handleEditFormChange("expectedShipDate", event.target.value)}
+                      className="border-border"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">출고일</Label>
+                    <Input
+                      type="date"
+                      value={editForm.shipDate}
+                      onChange={(event) => handleEditFormChange("shipDate", event.target.value)}
+                      className="border-border"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">작업 수량</Label>
+                    <Input
+                      type="number"
+                      value={editForm.workQuantity}
+                      onChange={(event) => handleEditFormChange("workQuantity", event.target.value)}
+                      className="border-border"
+                      placeholder="작업 수량을 입력하세요"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">디자인팀 메모</Label>
+                  <Textarea
+                    value={editForm.designMemo}
+                    onChange={(event) => handleEditFormChange("designMemo", event.target.value)}
+                    placeholder="디자인팀 메모를 입력하세요"
+                    className="border-border"
+                    rows={3}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">영업관리 메모</Label>
+                  <Textarea
+                    value={editForm.salesMemo}
+                    onChange={(event) => handleEditFormChange("salesMemo", event.target.value)}
+                    placeholder="영업관리 메모를 입력하세요"
+                    className="border-border"
+                    rows={3}
+                  />
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button type="button" variant="outline" onClick={closeEditDialog} className="bg-transparent">
+                    취소
+                  </Button>
+                  <Button type="submit">저장</Button>
+                </div>
+              </form>
+            )}
+          </DialogContent>
+        </Dialog>
+
         <QuotePreviewDialog
           open={showStatementPreview}
           onOpenChange={setShowStatementPreview}

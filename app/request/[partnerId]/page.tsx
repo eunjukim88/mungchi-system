@@ -9,8 +9,9 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Upload, FileText } from "lucide-react"
+import { NumericKeypadInput } from "@/components/ui/numeric-keypad-input"
+import { FileUploadDropzone } from "@/components/ui/file-upload-dropzone"
+import { FileText } from "lucide-react"
 
 // Mock partner data - in real app, this would come from a database
 const partnerData: Record<string, { name: string; contactPerson: string; phone: string }> = {
@@ -26,6 +27,7 @@ export default function WorkRequestPage() {
   const partner = partnerData[partnerId]
 
   const [formData, setFormData] = useState({
+    workType: "main",
     requiredDays: "",
     modaDays: "",
     estimatedAmount: "",
@@ -37,12 +39,7 @@ export default function WorkRequestPage() {
     memo: "",
   })
 
-  const [uploadedFile, setUploadedFile] = useState<File | null>(null)
-  const [isKeypadModalOpen, setIsKeypadModalOpen] = useState(false)
-  const [pendingOrderQuantity, setPendingOrderQuantity] = useState("")
-
-  const keypadDigits = ["8", "2", "9", "7", "3", "6", "5", "1", "4"]
-
+  const [uploadedFiles, setUploadedFiles] = useState<File[]>([])
   if (!partner) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -57,47 +54,34 @@ export default function WorkRequestPage() {
   }
 
   const handleInputChange = (name: string, value: string) => {
-    setFormData((prev) => ({ ...prev, [name]: value }))
-  }
+    setFormData((prev) => {
+      if (name === "workType") {
+        return {
+          ...prev,
+          workType: value,
+          styleNumber: value === "sample" ? "" : prev.styleNumber,
+        }
+      }
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (file) {
-      setUploadedFile(file)
-    }
-  }
-
-  const openKeypadModal = () => {
-    setPendingOrderQuantity(formData.orderQuantity || "")
-    setIsKeypadModalOpen(true)
-  }
-
-  const handleOrderQuantityAppend = (digit: string) => {
-    setPendingOrderQuantity((prev) => {
-      const nextRaw = `${prev}${digit}`
-      return nextRaw.replace(/^0+(?!$)/g, "")
+      return { ...prev, [name]: value }
     })
-  }
-
-  const handleOrderQuantityDelete = () => {
-    setPendingOrderQuantity((prev) => prev.slice(0, -1))
-  }
-
-  const handleOrderQuantityClear = () => {
-    setPendingOrderQuantity("")
-  }
-
-  const handleOrderQuantityConfirm = () => {
-    setFormData((prev) => ({
-      ...prev,
-      orderQuantity: pendingOrderQuantity,
-    }))
-    setIsKeypadModalOpen(false)
   }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    console.log("Work request submitted:", { partnerId, partner, formData, uploadedFile })
+    if (!formData.orderQuantity.trim()) {
+      alert("오더 수량을 입력해주세요.")
+      return
+    }
+    if (!formData.quantity) {
+      alert("입고일을 선택해주세요.")
+      return
+    }
+    if (formData.workType === "main" && !formData.styleNumber.trim()) {
+      alert("메인 작업일 경우 스타일번호를 입력해주세요.")
+      return
+    }
+    console.log("Work request submitted:", { partnerId, partner, formData, uploadedFiles })
     alert("작업 요청이 성공적으로 등록되었습니다!")
   }
 
@@ -121,77 +105,81 @@ export default function WorkRequestPage() {
             <form onSubmit={handleSubmit} className="space-y-6">
               {/* File Upload Section */}
               <Card className="border-dashed border-2 border-muted-foreground/25 py-3.5">
-                <CardContent className="p-6 py-0">
-                  <div className="text-center space-y-4">
-                    <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center mx-auto">
-                      <Upload className="h-6 w-6 text-primary" />
-                    </div>
-                    <div>
-                      <h3 className="font-medium text-primary">작업지시서 첨부 (서면 또는 PDF)</h3>
-                      <p className="text-sm text-muted-foreground mt-1">파일을 선택 또는 여기로 업로드</p>
-                      <p className="text-xs text-muted-foreground mt-1">PDF, JPG, PNG 파일을 업로드하세요</p>
-                    </div>
-                    <div className="flex justify-center">
-                      <input
-                        type="file"
-                        accept=".pdf,.jpg,.jpeg,.png"
-                        onChange={handleFileUpload}
-                        className="hidden"
-                        id="file-upload"
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => document.getElementById("file-upload")?.click()}
-                        className="bg-transparent"
-                      >
-                        파일 선택
-                      </Button>
-                    </div>
-                    {uploadedFile && (
-                      <p className="text-sm text-primary font-medium">선택된 파일: {uploadedFile.name}</p>
-                    )}
-                  </div>
+                <CardContent className="p-6">
+                  <FileUploadDropzone
+                    value={uploadedFiles}
+                    onChange={setUploadedFiles}
+                    acceptExtensions={["pdf", "jpg", "jpeg", "png"]}
+                    title="작업지시서 첨부 (서면 또는 PDF)"
+                    description="파일을 선택하거나 이 영역으로 드래그하세요"
+                    hint="PDF, JPG, PNG 파일을 업로드하세요"
+                  />
                 </CardContent>
               </Card>
 
               {/* Additional Fields */}
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-primary"># 스타일번호</Label>
-                  <Input
-                    value={formData.styleNumber}
-                    onChange={(e) => handleInputChange("styleNumber", e.target.value)}
-                    placeholder="예: ST-2024-001"
-                    className="border-border"
-                  />
+                  <Label className="text-sm font-medium">작업 유형</Label>
+                  <div className="grid grid-cols-2 gap-2 md:w-fit">
+                    {[
+                      { value: "sample", label: "샘플 작업" },
+                      { value: "main", label: "메인 작업" },
+                    ].map((option) => (
+                      <Button
+                        key={option.value}
+                        type="button"
+                        variant={formData.workType === option.value ? "default" : "outline"}
+                        className={`h-10 ${formData.workType === option.value ? "bg-primary text-primary-foreground" : "bg-transparent"}`}
+                        onClick={() => handleInputChange("workType", option.value)}
+                      >
+                        {option.label}
+                      </Button>
+                    ))}
+                  </div>
                 </div>
 
+                {formData.workType === "main" && (
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-primary"># 스타일번호</Label>
+                    <Input
+                      value={formData.styleNumber}
+                      onChange={(e) => handleInputChange("styleNumber", e.target.value)}
+                      placeholder="예:  YY251AC001"
+                      className="border-border"
+                    />
+                  </div>
+                )}
+
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium">오더 수량</Label>
-                  <Input
-                    className="border-border"
+                  <Label className="text-sm font-medium">오더 수량 <span className="text-destructive">*</span></Label>
+                  <NumericKeypadInput
                     value={formData.orderQuantity}
-                    readOnly
-                    inputMode="numeric"
+                    onValueChange={(nextValue) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        orderQuantity: nextValue,
+                      }))
+                    }
                     placeholder="수량을 입력하세요"
-                    onFocus={openKeypadModal}
-                    onClick={openKeypadModal}
+                    inputClassName="border-border"
+                    modalTitle="오더 수량 입력"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium">입고일</Label>
+                  <Label className="text-sm font-medium">입고일 <span className="text-destructive">*</span></Label>
                   <Input
                     type="date"
                     value={formData.quantity}
                     onChange={(e) => handleInputChange("quantity", e.target.value)}
                     className="w-full border-border"
+                    required
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-primary">메모</Label>
+                  <Label className="text-sm font-medium text-primary">메모 (선택)</Label>
                   <Textarea
                     value={formData.memo}
                     onChange={(e) => handleInputChange("memo", e.target.value)}
@@ -213,62 +201,6 @@ export default function WorkRequestPage() {
         {/* Footer */}
         <div className="text-center text-sm text-muted-foreground">작업 요청서 제출 후 담당자가 연락드리겠습니다.</div>
       </div>
-      <Dialog open={isKeypadModalOpen} onOpenChange={setIsKeypadModalOpen}>
-        <DialogContent className="w-full max-w-xs rounded-3xl border-none bg-primary text-primary-foreground p-6 shadow-2xl">
-          <DialogHeader className="mb-4 space-y-1">
-            <DialogTitle className="text-center text-base font-semibold tracking-wide">오더 수량 입력</DialogTitle>
-            <div className="text-center text-3xl font-bold text-white/90">
-              {pendingOrderQuantity || "0"}
-            </div>
-          </DialogHeader>
-          <div className="grid grid-cols-3 gap-3">
-            {keypadDigits.map((digit) => (
-              <Button
-                key={digit}
-                type="button"
-                variant="secondary"
-                className="h-14 rounded-2xl bg-white/15 text-2xl font-semibold text-primary-foreground hover:bg-white/25"
-                onClick={() => handleOrderQuantityAppend(digit)}
-              >
-                {digit}
-              </Button>
-            ))}
-            <Button
-              type="button"
-              variant="secondary"
-              className="h-14 rounded-2xl bg-white/10 text-sm font-medium text-primary-foreground hover:bg-white/20"
-              onClick={handleOrderQuantityClear}
-            >
-              전체삭제
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              className="h-14 rounded-2xl bg-white/15 text-2xl font-semibold text-primary-foreground hover:bg-white/25"
-              onClick={() => handleOrderQuantityAppend("0")}
-            >
-              0
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              className="h-14 rounded-2xl bg-white/15 text-2xl font-semibold text-primary-foreground hover:bg-white/25"
-              onClick={handleOrderQuantityDelete}
-            >
-              ⌫
-            </Button>
-          </div>
-          <DialogFooter className="mt-6">
-            <Button
-              type="button"
-              className="w-full rounded-2xl bg-white text-primary hover:bg-white/90"
-              onClick={handleOrderQuantityConfirm}
-            >
-              확인
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }

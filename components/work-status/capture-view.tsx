@@ -2,6 +2,7 @@
 
 import React from "react"
 import { cn } from "@/lib/utils"
+import { StatusBadge } from "@/components/status/StatusBadge"
 
 export type WorkStatusCaptureItem = {
   id: string
@@ -105,8 +106,8 @@ export const WorkStatusCaptureView = React.forwardRef<HTMLDivElement, WorkStatus
                       <td className="border-t border-border px-3 py-3 text-center text-muted-foreground">
                         {item.expectedShipDate}
                       </td>
-                      <td className="border-t border-border px-3 py-3 text-center font-semibold text-primary">
-                        {item.status}
+                      <td className="border-t border-border px-3 py-3 text-center">
+                        <StatusBadge status={item.status} />
                       </td>
                       <td className="border-t border-border px-3 py-3 text-right font-medium text-foreground">
                         {item.workQuantity.toLocaleString()}개

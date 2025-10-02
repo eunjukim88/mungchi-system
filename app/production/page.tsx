@@ -11,9 +11,11 @@ import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
+import { StatusBadge } from "@/components/status/StatusBadge"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Filter, FileText, Paperclip, Upload } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
+import { NumericKeypadInput } from "@/components/ui/numeric-keypad-input"
 
 type ProductionItem = {
   id: string
@@ -35,7 +37,7 @@ const initialProductionItems: ProductionItem[] = [
     id: "PD-2024-001",
     partnerName: "B파트너",
     styleNo: "ST-001",
-    status: "대기중",
+    status: "작업중",
     arrivalDate: "2025-09-13",
     orderQuantity: 1213,
     workOrderFile: "작업지시서_PD001.pdf",
@@ -49,7 +51,7 @@ const initialProductionItems: ProductionItem[] = [
     id: "PD-2024-002",
     partnerName: "A파트너",
     styleNo: "ST-104",
-    status: "작업완료",
+    status: "후가공중",
     arrivalDate: "2025-09-10",
     orderQuantity: 850,
     workOrderFile: "작업지시서_PD002.pdf",
@@ -90,23 +92,6 @@ export default function ProductionManagementPage() {
     () => Array.from(new Set(items.map((item) => item.partnerName))),
     [items],
   )
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "대기중":
-        return (
-          <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
-            {status}
-          </Badge>
-        )
-      case "작업완료":
-        return <Badge className="bg-blue-100 text-blue-800">{status}</Badge>
-      case "배송완료":
-        return <Badge className="bg-green-100 text-green-800">{status}</Badge>
-      default:
-        return <Badge variant="secondary">{status}</Badge>
-    }
-  }
 
   const filteredItems = items.filter((item) => {
     const matchesStatus = statusFilter === "전체" || item.status === statusFilter
@@ -192,7 +177,8 @@ export default function ProductionManagementPage() {
                   <SelectContent>
                     <SelectItem value="전체">전체</SelectItem>
                     <SelectItem value="대기중">대기중</SelectItem>
-                    <SelectItem value="작업완료">작업완료</SelectItem>
+                    <SelectItem value="작업중">작업중</SelectItem>
+                    <SelectItem value="후가공중">후가공중</SelectItem>                    
                     <SelectItem value="배송완료">배송완료</SelectItem>
                   </SelectContent>
                 </Select>
@@ -227,7 +213,7 @@ export default function ProductionManagementPage() {
                     <h3 className="text-lg font-semibold text-foreground">{item.partnerName}</h3>
                     <Badge variant="outline" className="mt-1">#{item.styleNo}</Badge>
                   </div>
-                  {getStatusBadge(item.status)}
+                  <StatusBadge status={item.status} />
                 </div>
                 <div className="flex flex-col gap-4 md:flex-row md:items-start md:gap-6">
                   <button
@@ -366,7 +352,8 @@ function ProductionInfoForm({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="대기중">대기중</SelectItem>
-            <SelectItem value="작업완료">작업완료</SelectItem>
+            <SelectItem value="작업중">작업중</SelectItem>
+            <SelectItem value="후가공중">후가공중</SelectItem>
             <SelectItem value="배송완료">배송완료</SelectItem>
           </SelectContent>
         </Select>
@@ -374,13 +361,12 @@ function ProductionInfoForm({
 
       <div className="space-y-2">
         <Label className="leading-8">작업수량</Label>
-        <Input
-          className="border-border"
-          type="number"
-          min="0"
-          placeholder="작업수량을 입력하세요"
+        <NumericKeypadInput
           value={formData.workQuantity}
-          onChange={(e) => setFormData((prev) => ({ ...prev, workQuantity: e.target.value }))}
+          onValueChange={(nextValue) => setFormData((prev) => ({ ...prev, workQuantity: nextValue }))}
+          placeholder="작업수량을 입력하세요"
+          inputClassName="border-border"
+          modalTitle="작업수량 입력"
         />
       </div>
 
